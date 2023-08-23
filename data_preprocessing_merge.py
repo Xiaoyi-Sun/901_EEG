@@ -2,7 +2,8 @@
 # @Time    : 2023/8/22 15:09
 # @Author  : Xiaoyi Sun
 # @Site    : 
-# @File    : data_preprocessing_merge.py
+# @File    :
+
 # @Software: PyCharm
 
 
@@ -26,7 +27,7 @@ def get_raw_file(path):
     raw_file_in.columns = new_header
     return raw_file_in
 
-
+# good
 def modify_respondent(respondent):
     if '' in respondent and respondent.count('') >= 2:
         parts = respondent.split('_')
