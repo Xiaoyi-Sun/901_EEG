@@ -4,11 +4,13 @@
 # @Site    : 
 # @File    : signal_classification.py
 # @Software: PyCharm
-
+import os
+from idlelib import history
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 from keras.layers import Dense
+from matplotlib import pyplot as plt
 from tensorflow import keras
 from keras import layers
 from keras.models import Sequential
@@ -16,15 +18,15 @@ from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from sklearn.model_selection import train_test_split, RandomizedSearchCV
 from sklearn.preprocessing import StandardScaler
-from kerastuner.tuners import RandomSearch
 from scipy.stats import skew, kurtosis
 from sklearn.model_selection import GridSearchCV
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.linear_model import BayesianRidge
 from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, f1_score, precision_score, recall_score, accuracy_score
+from sklearn.metrics import roc_curve, auc
 
 def process_gsr_data(filename, ground_truth_file):
     # Read the CSV file
@@ -107,7 +109,47 @@ def process_gsr_data(filename, ground_truth_file):
     return features, target, merged_df
 
 
+def plot_learning_curve(model, X_train, y_train, X_test, y_test, save_filename=None):
+    train_errors, test_errors = [], []
 
+    # Define a range of training set sizes
+    training_sizes = np.linspace(0.1, 1.0, 10)
+
+    for size in training_sizes:
+        # Select a subset of the training data
+        subset_size = int(size * len(X_train))
+        X_subset = X_train[:subset_size]
+        y_subset = y_train[:subset_size]
+
+        # Fit the model to the subset
+        model.fit(X_subset, y_subset)
+
+        # Make predictions on both training and test data
+        y_train_pred = model.predict(X_subset)
+        y_test_pred = model.predict(X_test)
+
+        # Calculate RMSE for the predictions
+        train_rmse = np.sqrt(mean_squared_error(y_subset, y_train_pred))
+        test_rmse = np.sqrt(mean_squared_error(y_test, y_test_pred))
+
+        train_errors.append(train_rmse)
+        test_errors.append(test_rmse)
+    save_filename = "/Users/sunxiaoyi/PycharmProjects/901_EEG/figure_name.png"
+    save_directory = os.path.dirname(save_filename)
+    if not os.path.exists(save_directory):
+        os.makedirs(save_directory)
+    # Plot the learning curve
+    plt.figure(figsize=(10, 6))
+    plt.plot(training_sizes, train_errors, label="Training RMSE")
+    plt.plot(training_sizes, test_errors, label="Testing RMSE")
+    plt.xlabel("Training Set Size")
+    plt.ylabel("RMSE")
+    plt.legend()
+    plt.title("Learning Curve")
+    plt.grid(True)
+    plt.savefig(save_filename, dpi=300, bbox_inches='tight')
+
+    plt.show()
 
 
 def train_evaluate_models(features, target):
@@ -225,7 +267,7 @@ def train_evaluate_models(features, target):
         return model
 
     tuner = RandomizedSearchCV(
-        keras.wrappers.scikit_learn.KerasRegressor(build_fn=create_model),
+        tf.keras.wrappers.scikit_learn.KerasRegressor(build_fn=create_model),
         param_distributions={
             'learning_rate': [0.001],
             'batch_size': [16, 32, 64],
@@ -250,6 +292,7 @@ def train_evaluate_models(features, target):
     best_model = None
     best_y_pred = None
     best_model_name = None
+
     for model_name, model in models:
         if model_name == "KerasNN":
             mae = mae_keras
@@ -278,13 +321,17 @@ def train_evaluate_models(features, target):
 
     print(f"Best Model: {best_model_name}")
     print(f"Best Model: {best_mae}")
+    rmse = np.sqrt(mean_squared_error(y_test, best_y_pred))
+    print(f"Best Model: {best_model_name}")
+    print(f"Best Model RMSE: {rmse:.2f}")
+    # Plot and save loss curve for the best model
 
-    # Return the best model, its predicted target values, and the name of the best model
+    plot_learning_curve(best_model, X_train, y_train, X_test, y_test)
+
+# Return the best model, its predicted target values, and the name of the best model
     return best_model, best_y_pred
 
-# Example usage:
-# best_model = train_evaluate_models(features, target)
-# 'best_model' is the best performing model and the performance metrics for all models are printed.
+
 
 
 

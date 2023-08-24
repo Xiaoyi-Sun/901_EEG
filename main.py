@@ -89,8 +89,6 @@ while True:
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
                 # Create a list of unique participants
-        import matplotlib.pyplot as plt
-
         # Create a directory to save the plots
         save_dir = 'scatterplots'
         os.makedirs(save_dir, exist_ok=True)
@@ -101,42 +99,47 @@ while True:
         # Define colors for the two types of plots
         colors = ['blue', 'red']  # Different colors for Valence/Arousal and Valence/Predicted Arousal
 
-        # Get unique participants
+        # Get unique participants and unique stimuli
         unique_participants = merged_df_last_20['Respondent'].unique()
+        unique_stimuli = merged_df_last_20['SourceStimuliName'].unique()
 
-        # Loop through each unique participant
+        # Loop through each unique participant and stimulus
         for participant in unique_participants:
-            # Create a figure and axis for the current participant
-            fig, ax = plt.subplots(figsize=(8, 6))
+            for stimulus in unique_stimuli:
+                # Create a figure and axis for the current participant and stimulus
+                fig, ax = plt.subplots(figsize=(8, 6))
 
-            # Select data for the current participant
-            participant_data = merged_df_last_20[merged_df_last_20['Respondent'] == participant]
+                # Select data for the current participant and stimulus
+                data = merged_df_last_20[(merged_df_last_20['Respondent'] == participant) & (merged_df_last_20['SourceStimuliName'] == stimulus)]
 
-            # Scatterplot 1: Valence vs Arousal (Blue)
-            ax.scatter(participant_data['Valence'], participant_data[' Arousal'], c=colors[0], marker=marker_style, label='Valence/Arousal', alpha=0.5)
+                # Scatterplot 1: Valence vs Arousal (Blue)
+                ax.scatter(data['Valence'], data[' Arousal'], c=colors[0], marker=marker_style, label='Valence/Arousal', alpha=0.5)
 
-            # Scatterplot 2: Valence vs Predicted Arousal (Red)
-            ax.scatter(participant_data['Valence'], participant_data['predicted_arousal'], c=colors[1], marker=marker_style, label='Valence/Predicted Arousal', alpha=0.5)
+                # Scatterplot 2: Valence vs Predicted Arousal (Red)
+                ax.scatter(data['Valence'], data['predicted_arousal'], c=colors[1], marker=marker_style, label='Valence/Predicted Arousal', alpha=0.5)
 
-            # Label each point with the stimulus name
-            for x, y, stimulus in zip(participant_data['Valence'], participant_data['predicted_arousal'], participant_data['SourceStimuliName']):
-                ax.text(x, y, stimulus, fontsize=8)
+                # Label each point with the stimulus name
+                for x, y, stimulus_name in zip(data['Valence'], data['predicted_arousal'], data['SourceStimuliName']):
+                    ax.text(x, y, stimulus_name, fontsize=8)
 
-            # Set axis labels
-            ax.set_xlabel('Valence')
-            ax.set_ylabel('Arousal')
+                # Set axis labels
+                ax.set_xlabel('Valence')
+                ax.set_ylabel('Arousal')
 
-            # Add a legend
-            ax.legend()
+                # Add a legend
+                ax.legend()
 
-            # Set the title for the current plot
-            ax.set_title(f'Scatterplot for Participant {participant}')
+                # Set the title for the current plot
+                ax.set_title(f'Scatterplot for Participant {participant} - Stimulus {stimulus}')
 
-            # Save the plot for the current participant
-            plt.savefig(os.path.join(save_dir, f'scatterplot_{participant}.png'))
+                # Save the plot for the current participant and stimulus
+                plt.savefig(os.path.join(save_dir, f'scatterplot_{participant}_stimulus_{stimulus}.png'))
 
-            # Close the figure for the current participant
-            plt.close()
+                # Close the figure for the current participant and stimulus
+                plt.close()
+
+
+
 
 
 
@@ -153,6 +156,5 @@ while True:
 
         merged_df_last_20.to_csv(predicted_data, index=False)
 
-# Alternatively, you can save the plot as an image file if needed, e.g., plt.savefig('participant_plot.png')
     elif choice == "5":
         exit
