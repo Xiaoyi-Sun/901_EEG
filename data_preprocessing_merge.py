@@ -42,7 +42,7 @@ def extrac_data_v_old(data):
     # new columns
     try:
         data = data[['Timestamp', 'GSR RAW', 'GSR Resistance CAL', 'GSR Conductance CAL', 'SourceStimuliName',
-                     'Phasic Signal', 'Tonic Signal', 'Peak Amplitude']]
+                     'Phasic Signal', 'Tonic Signal', 'Peak Amplitude', 'Heart Rate PPG ALG']]
     except KeyError:
         return False
     # select only stimuli events
@@ -65,6 +65,7 @@ def extrac_data_v_old(data):
     ps_data = pd.Series(data.groupby(['SourceStimuliName'])['Phasic Signal'])
     tn_data = pd.Series(data.groupby(['SourceStimuliName'])['Tonic Signal'])
     time = pd.Series(data.groupby(['SourceStimuliName'])['Timestamp'])
+    heart_rate = pd.Series(data.groupby(['SourceStimuliName'])['Heart Rate PPG ALG'])
 
     return data, ps_data, peak_amp, tn_data, time
 # group data
@@ -127,7 +128,7 @@ def extract_data_v_new(data):
     # new columns
     try:
         data = data[['Timestamp', 'GSR RAW', 'GSR Resistance CAL', 'GSR Conductance CAL', 'SourceStimuliName',
-                     'Phasic Signal', 'Tonic Signal', 'Peak Amplitude']]
+                     'Phasic Signal', 'Tonic Signal', 'Peak Amplitude', 'Heart Rate PPG ALG']]
     except KeyError:
         return False
     # select only stimuli events
@@ -150,7 +151,7 @@ def extract_data_v_new(data):
     ps_data = pd.Series(data.groupby(['SourceStimuliName'])['Phasic Signal'])
     tn_data = pd.Series(data.groupby(['SourceStimuliName'])['Tonic Signal'])
     time = pd.Series(data.groupby(['SourceStimuliName'])['Timestamp'])
-
+    heart_rate = pd.Series(data.groupby(['SourceStimuliName'])['Heart Rate PPG ALG'])
     return data, ps_data, peak_amp, tn_data, time
 
 # group data

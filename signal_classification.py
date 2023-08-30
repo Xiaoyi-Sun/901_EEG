@@ -11,6 +11,7 @@ import pandas as pd
 import tensorflow as tf
 from keras.layers import Dense
 from matplotlib import pyplot as plt
+import seaborn as sns
 from tensorflow import keras
 from keras import layers
 from keras.models import Sequential
@@ -29,6 +30,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, f1_score, p
 from sklearn.metrics import roc_curve, auc
 
 def process_gsr_data(filename, ground_truth_file):
+    top_n_features=10
     # Read the CSV file
     df = pd.read_csv(filename)
 
@@ -50,7 +52,7 @@ def process_gsr_data(filename, ground_truth_file):
         'kurtosis': kurtosis,
         'range': lambda x: np.max(x) - np.min(x),
         'iqr': lambda x: np.percentile(x, 75) - np.percentile(x, 25),
-        'cv': lambda x: np.std(x) / np.mean(x),
+        'cv': lambda x: np.std(x) / np.mean(x) if np.mean(x) != 0 else 0.0,
         'percentile_25': lambda x: np.percentile(x, 25),
         'percentile_75': lambda x: np.percentile(x, 75),
         'pa_mean': lambda x: x.mean(),
@@ -76,7 +78,7 @@ def process_gsr_data(filename, ground_truth_file):
             }
 
             # Calculate statistical features for 'Phasic Signal' and 'Tonic Signal'
-            for col in ['Phasic Signal', 'Tonic Signal']:
+            for col in ['Phasic Signal', 'Tonic Signal', 'Heart Rate PPG ALG', 'GSR RAW', 'GSR Resistance CAL', 'GSR Conductance CAL']:
                 for feature_name, feature_func in feature_functions.items():
                     feature_value = feature_func(segment_df[col])
                     segment_features[f'{col}_{feature_name}'] = feature_value
@@ -86,7 +88,8 @@ def process_gsr_data(filename, ground_truth_file):
 
     # Create a DataFrame from the list of segment features
     segmented_data_df = pd.DataFrame(segmented_data)
-
+    segmented_data_df['Heart Rate'] = df['Heart Rate PPG ALG']
+    segmented_data_df['Timestamp'] = df['Timestamp']
     # Copy the segmented data DataFrame
     copy = segmented_data_df
 
@@ -103,11 +106,40 @@ def process_gsr_data(filename, ground_truth_file):
     merged_df = merged_df.fillna(0)
 
     # Select features (exclude 'Respondent', 'SourceStimuliName', and ' Arousal')
-    features = merged_df.drop(['Respondent', 'SourceStimuliName', ' Arousal', 'Valence'], axis=1)
+    features = merged_df.drop(['Respondent', 'SourceStimuliName', ' Arousal', 'Valence', 'Timestamp'], axis=1)
     target = merged_df[' Arousal']
+    data_test = pd.concat([features, target], axis=1)
 
-    return features, target, merged_df
+    # Calculate the correlation matrix
+    correlation_matrix = data_test.corr()
 
+    # Get the top N features correlated with the target
+    top_correlated_features = correlation_matrix[' Arousal'].sort_values(ascending=False)[1:(top_n_features+1)]
+
+    # Display the top N correlated features
+    print(top_correlated_features)
+
+    # Return only the top N correlated features
+    selected_features = features[top_correlated_features.index]
+
+    return selected_features, target, merged_df
+
+def directional_rmse(y_true, y_pred):
+    # Calculate the errors
+    errors = y_true - y_pred
+
+    # Separate errors into positive and negative components
+    positive_errors = np.maximum(0, errors)
+    negative_errors = np.maximum(0, -errors)  # Negate to make them positive
+
+    # Calculate RMSE for positive and negative errors
+    rmse_positive = np.sqrt(np.mean(positive_errors**2))
+    rmse_negative = np.sqrt(np.mean(negative_errors**2))
+
+    # Combine RMSE values to get Directional RMSE
+    directional_rmse = np.sqrt((rmse_positive**2 + rmse_negative**2) / 2)
+
+    return directional_rmse
 
 def plot_learning_curve(model, X_train, y_train, X_test, y_test, save_filename=None):
     train_errors, test_errors = [], []
@@ -151,6 +183,17 @@ def plot_learning_curve(model, X_train, y_train, X_test, y_test, save_filename=N
 
     plt.show()
 
+def custom_loss_with_direction(y_true, y_pred):
+    # Calculate the signed error
+    signed_error = y_true - y_pred
+
+    # Define a penalty factor for opposite-direction predictions
+    penalty_factor = 2.0  # You can adjust this as needed
+
+    # Calculate the loss with a penalty for opposite-direction predictions
+    loss = tf.reduce_mean(tf.where(signed_error >= 0, tf.abs(signed_error), penalty_factor * tf.abs(signed_error)))
+
+    return loss
 
 def train_evaluate_models(features, target):
     # Split data into training and testing sets
@@ -183,8 +226,10 @@ def train_evaluate_models(features, target):
     y_pred_rf = best_model_rf.predict(X_test)
     mae_rf = mean_absolute_error(y_test, y_pred_rf)
     rmse_rf = np.sqrt(mean_squared_error(y_test, y_pred_rf))
+    directional_rmse_rf = directional_rmse(y_test, y_pred_rf)
     print(f"Random Forest MAE: {mae_rf:.2f}")
     print(f"Random Forest RMSE: {rmse_rf:.2f}")
+    print(f"Random Forest RMSE: {directional_rmse_rf:.2f}")
 
     # Gradient Boosting Regressor
     param_grid_gb = {
@@ -203,8 +248,10 @@ def train_evaluate_models(features, target):
     y_pred_gb = best_model_gb.predict(X_test)
     mae_gb = mean_absolute_error(y_test, y_pred_gb)
     rmse_gb = np.sqrt(mean_squared_error(y_test, y_pred_gb))
+    directional_rmse_gb = directional_rmse(y_test, y_pred_rf)
     print(f"Gradient Boosting MAE: {mae_gb:.2f}")
     print(f"Gradient Boosting RMSE: {rmse_gb:.2f}")
+    print(f"Gradient Boosting RMSE: {directional_rmse_gb:.2f}")
 
     # Bayesian Ridge Regressor
     bayesian_reg = BayesianRidge()
@@ -220,8 +267,10 @@ def train_evaluate_models(features, target):
     y_pred_bayesian = best_bayesian_reg.predict(X_test)
     mae_bayesian = mean_absolute_error(y_test, y_pred_bayesian)
     rmse_bayesian = np.sqrt(mean_squared_error(y_test, y_pred_bayesian))
+    directional_rmse_bay = directional_rmse(y_test, y_pred_rf)
     print(f"Bayesian Ridge MAE: {mae_bayesian:.2f}")
     print(f"Bayesian Ridge RMSE: {rmse_bayesian:.2f}")
+    print(f"Bayesian Ridge RMSE: {directional_rmse_bay:.2f}")
 
     # K-Nearest Neighbors Regressor
     param_grid_knn = {
@@ -237,8 +286,10 @@ def train_evaluate_models(features, target):
     y_pred_knn = best_model_knn.predict(X_test)
     mae_knn = mean_absolute_error(y_test, y_pred_knn)
     rmse_knn = np.sqrt(mean_squared_error(y_test, y_pred_knn))
+    directional_rmse_knn = directional_rmse(y_test, y_pred_rf)
     print(f"K-Nearest Neighbors MAE: {mae_knn:.2f}")
     print(f"K-Nearest Neighbors RMSE: {rmse_knn:.2f}")
+    print(f"K-Nearest Neighbors RMSE: {directional_rmse_knn:.2f}")
 
     # Decision Tree Regressor
     param_grid_tree = {
@@ -254,8 +305,10 @@ def train_evaluate_models(features, target):
     y_pred_tree = best_model_tree.predict(X_test)
     mae_tree = mean_absolute_error(y_test, y_pred_tree)
     rmse_tree = np.sqrt(mean_squared_error(y_test, y_pred_tree))
+    directional_rmse_tree = directional_rmse(y_test, y_pred_rf)
     print(f"Decision Tree MAE: {mae_tree:.2f}")
     print(f"Decision Tree RMSE: {rmse_tree:.2f}")
+    print(f"Decision Tree RMSE: {directional_rmse_tree:.2f}")
 
     # Create a neural network model using Keras
     def create_model(learning_rate=0.001, batch_size=32):
@@ -263,17 +316,17 @@ def train_evaluate_models(features, target):
         model.add(Dense(64, activation='relu', input_shape=(X_train.shape[1],)))
         model.add(Dense(32, activation='relu'))
         model.add(Dense(1, activation='linear'))
-        model.compile(optimizer=Adam(learning_rate=learning_rate), loss='mean_squared_error', metrics=['mae', 'mse'])
+        model.compile(optimizer=Adam(learning_rate=learning_rate), loss=custom_loss_with_direction, metrics=['mae', 'mse'])
         return model
 
     tuner = RandomizedSearchCV(
         tf.keras.wrappers.scikit_learn.KerasRegressor(build_fn=create_model),
         param_distributions={
             'learning_rate': [0.001],
-            'batch_size': [16, 32, 64],
-            'epochs': [50, 100, 150],
+            'batch_size': [64],
+            'epochs': [1000],
         },
-        scoring='neg_mean_squared_error', cv=3, verbose=1, n_jobs=-1
+        scoring='neg_mean_squared_error', cv=2, verbose=1, n_jobs=-1
     )
 
     tuner.fit(X_train, y_train)
@@ -284,11 +337,14 @@ def train_evaluate_models(features, target):
     y_pred_keras = best_keras_model.predict(X_test)
     mae_keras = mean_absolute_error(y_test, y_pred_keras)
     rmse_keras = np.sqrt(mean_squared_error(y_test, y_pred_keras))
+    directional_rmse_keras = directional_rmse(y_test, y_pred_rf)
     print(f"Keras Neural Network MAE: {mae_keras:.2f}")
     print(f"Keras Neural Network RMSE: {rmse_keras:.2f}")
+    print(f"Keras Neural Network RMSE: {directional_rmse_keras:.2f}")
 
     # Find the best model
     best_mae = float('inf')
+    best_drmse = float('inf')
     best_model = None
     best_y_pred = None
     best_model_name = None
@@ -296,20 +352,26 @@ def train_evaluate_models(features, target):
     for model_name, model in models:
         if model_name == "KerasNN":
             mae = mae_keras
+            drmse = directional_rmse_keras
             y_pred = y_pred_keras
         elif model_name == "RandomForest":
             mae = mae_rf
+            drmse = directional_rmse_rf
             y_pred = y_pred_rf
         elif model_name == "GradientBoosting":
             mae = mae_gb
+            drmse = directional_rmse_gb
             y_pred = y_pred_gb
         elif model_name == "BayesianRidge":
             mae = mae_bayesian
+            drmse = directional_rmse_bay
             y_pred = y_pred_bayesian
         elif model_name == "KNeighbors":
+            drmse = directional_rmse_knn
             mae = mae_knn
             y_pred = y_pred_knn
         elif model_name == "DecisionTree":
+            drmse = directional_rmse_tree
             mae = mae_tree
             y_pred = y_pred_tree
 
@@ -318,13 +380,22 @@ def train_evaluate_models(features, target):
             best_model = model
             best_y_pred = y_pred
             best_model_name = model_name
+        if drmse < best_drmse:
+            best_model_2 = model
+            best_y_pred_2 = y_pred
+            best_model_name_2 = model_name
+            best_drmse = drmse
 
     print(f"Best Model: {best_model_name}")
-    print(f"Best Model: {best_mae}")
+    print(f"Best mae: {best_mae}")
     rmse = np.sqrt(mean_squared_error(y_test, best_y_pred))
-    print(f"Best Model: {best_model_name}")
     print(f"Best Model RMSE: {rmse:.2f}")
+
     # Plot and save loss curve for the best model
+    print(f"Best Model: {best_model_name_2}")
+    rmse = np.sqrt(mean_squared_error(y_test, best_y_pred))
+    print(f"Best Model RMSE: {rmse:.2f}")
+    print(f"Best Model RMSE: {best_drmse:.2f}")
 
     plot_learning_curve(best_model, X_train, y_train, X_test, y_test)
 

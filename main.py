@@ -1,3 +1,4 @@
+import pandas as pd
 from keras import Sequential
 
 from signal_classification import process_gsr_data, train_evaluate_models
@@ -19,7 +20,7 @@ from keras.models import save_model
 repository_data = {}
 
 # Read repositories from the text file and store them in the dictionary
-with open("repository.txt", "r") as txt_file:
+with open("repository_2.txt", "r") as txt_file:
     for line in txt_file:
         name, url = line.strip().split(',')
         repository_data[name] = url
@@ -59,7 +60,8 @@ while True:
     print("2. select new version of data v5 and vf file and convert them to csv and merge them to one csv file")
     print("3. merge new data to existing dataframe")
     print("4. one off button for data processing, import ground truth, run model comparison and get the predicted results")
-    print("5. Exit")
+    print("5. plot time series graph with predicted results")
+    print("6. Exit")
 
 
     choice = input("Enter the number of the function you want to choose: ")
@@ -85,6 +87,7 @@ while True:
 
         # Add the predicted arousal values to the last 20% of the DataFrame
         merged_df_last_20['predicted_arousal'] = y_pred
+        merged_df_last_20.to_csv(predicted_data, index=False)
         save_dir = 'saved_info'
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
@@ -138,11 +141,6 @@ while True:
                 # Close the figure for the current participant and stimulus
                 plt.close()
 
-
-
-
-
-
         if isinstance(best_model, Sequential):
             # It's a Keras (deep learning) model
             model_save_path = os.path.join(save_dir, 'best_deep_learning_model')
@@ -153,8 +151,48 @@ while True:
             dump(best_model, model_save_path)  # Save the machine learning model
 
 
-
-        merged_df_last_20.to_csv(predicted_data, index=False)
-
     elif choice == "5":
+        df = pd.read_csv(predicted_data)
+
+        # Convert the 'Timestamp' column to a datetime object (if it's not already)
+        df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+
+        # Get unique participants and unique stimuli
+        unique_participants = df['Respondent'].unique()
+        unique_stimuli = df['SourceStimuliName'].unique()
+
+        # Create a directory to save the individual time series plots
+        save_dir = 'time_series_plots'
+        os.makedirs(save_dir, exist_ok=True)
+
+        # Loop through each unique participant and stimulus
+        for participant in unique_participants:
+            for stimulus in unique_stimuli:
+                # Create a figure and axis for the current participant and stimulus
+                plt.figure(figsize=(12, 6))
+                ax = plt.gca()
+
+                # Select data for the current participant and stimulus
+                data = df[(df['Respondent'] == participant) & (df['SourceStimuliName'] == stimulus)]
+
+                # Plot 'Arousal' and 'predicted_arousal' over time for the current combination
+                ax.plot(data['Timestamp'], data[' Arousal'], label='Arousal', linestyle='-', marker='o', markersize=4)
+                ax.plot(data['Timestamp'], data['predicted_arousal'], label='Predicted Arousal', linestyle='-', marker='o', markersize=4)
+
+                # Add labels and title
+                plt.xlabel('Timestamp')
+                plt.ylabel('Value')
+                plt.title(f'Time Series Data for Participant {participant} - Stimulus {stimulus}')
+                plt.grid(True)
+
+                # Add a legend
+                plt.legend()
+
+                # Save the time series plot for the current participant and stimulus
+                plot_filename = os.path.join(save_dir, f'time_series_plot_{participant}_stimulus_{stimulus}.png')
+                plt.savefig(plot_filename)
+
+                # Close the figure
+                plt.close()
+    elif choice == "6":
         exit

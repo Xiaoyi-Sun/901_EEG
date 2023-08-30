@@ -1,9 +1,0 @@
-data_folder_old,/Users/sunxiaoyi/Desktop/901/xiaoyi_GSR/data/v1
-data_folder_new,/Users/sunxiaoyi/Desktop/901/xiaoyi_GSR/data/v5
-output_data,/Users/sunxiaoyi/Desktop/901/xiaoyi_GSR/data/v5.csv
-old_data,/Users/sunxiaoyi/Desktop/901/xiaoyi_GSR/data/v1.csv
-new_data,/Users/sunxiaoyi/Desktop/901/xiaoyi_GSR/data/v5.csv
-old_new_combined_data,/Users/sunxiaoyi/Desktop/901/xiaoyi_GSR/data/combined.csv
-ready_data,/Users/sunxiaoyi/Desktop/901/xiaoyi_GSR/data/combined.csv
-ground_truth,/Users/sunxiaoyi/Desktop/901/xiaoyi_ground truth/individual_ground_truth.csv
-predicted_data,/Users/sunxiaoyi/Desktop/901/xiaoyi_GSR/data/predicted.csv
